@@ -1,28 +1,53 @@
 import streamlit as st
 
-from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
-import json
-
-from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain_core.messages import HumanMessage, AIMessage
 
 
 class DisplayResultStreamlit:
+
     def __init__(self, usecase, graph, user_message):
         self.usecase = usecase
         self.graph = graph
         self.user_message = user_message
 
     def display_result_on_ui(self):
-        usecase = self.usecase
-        graph = self.graph
-        user_message = self.user_message
 
-        if usecase == "Basic Chatbot":
-            for event in graph.stream({'messages':{"user", user_message}}):
-                print(event.values())
-                for value in event.values():
-                    print(value['messages'])
-                    with st.chat_message("user"):
-                        st.write(user_message)
-                    with st.chat_message("assistant"):
-                        st.write(value["messages"].content)
+        if "messages" not in st.session_state:
+            st.session_state.messages = []
+
+        # Display old history
+        for msg in st.session_state.messages:
+
+            if isinstance(msg, HumanMessage):
+                with st.chat_message("user"):
+                    st.write(msg.content)
+
+            elif isinstance(msg, AIMessage):
+                with st.chat_message("assistant"):
+                    st.write(msg.content)
+
+        if self.usecase == "Basic Chatbot":
+
+            # Add current user message
+            st.session_state.messages.append(
+                HumanMessage(content=self.user_message)
+            )
+
+            # Run graph with full history
+            result = self.graph.invoke({
+                "messages": st.session_state.messages
+            })
+
+            # Get latest AI response
+            ai_message = result["messages"][-1]
+
+            # Save AI response
+            st.session_state.messages.append(ai_message)
+
+            # Display current user message
+            with st.chat_message("user"):
+                st.write(self.user_message)
+
+            # Display AI response
+            with st.chat_message("assistant"):
+                st.write(ai_message.content)
